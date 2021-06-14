@@ -1,0 +1,146 @@
+---
+title: 'Telenostic Equine Model: May 2021 7 update'
+author: "Shane Brennan"
+date: "09 May 2021"
+output:
+  html_document:
+    df_print: paged
+  word_document: default
+  pdf_document: default
+---
+  html_document: default
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+library(tidyverse)
+```
+
+
+
+# May 2021-07 model
+
+
+## Model evaluation
+
+```{r, echo=FALSE, message=FALSE}
+gt_dec2020_csv <- read_csv('data/May2021_7 GroundTruth.csv')
+me_dec2020_csv <- read_csv('data/May2021_7_model_evaluation.csv')
+
+gt_dec2020 <- gt_dec2020_csv
+me_dec2020 <- me_dec2020_csv %>%
+  filter(iteration >= 800) %>%     # earlier models are not even close
+  filter(confthreshold != 100) %>% # some metrics seem to be broken at that conf level
+  left_join( gt_dec2020 %>% filter(set=='testing'), by='class' ) %>%
+  mutate(fn=totalcount-tp) %>%
+  mutate(
+    precision = tp / (tp+fp),
+    recall = tp / (tp+fn)
+  ) %>%
+  mutate(
+    f1score = 2*( (precision*recall) / (precision+recall) )
+  )
+
+write_csv(me_dec2020, "modeleval_May_2021_05.csv")
+
+me_dec2020.long <- me_dec2020 %>%
+  gather(tp, fp, fn, precision, recall, f1score, key="metric", value="value")
+
+
+me_dec2020_allclasses <- me_dec2020 %>%
+  group_by(iteration, confthreshold) %>%
+  summarise(
+    tp=sum(tp),
+    fp=sum(fp),
+    fn=sum(fn),
+    totalcount=sum(totalcount)
+  ) %>%
+  mutate(
+    precision = tp / (tp+fp),
+    recall = tp / (tp+fn)
+  ) %>%
+  mutate(
+    f1score = 2*( (precision*recall) / (precision+recall) )
+  )
+
+me_dec2020_allclasses.long <- me_dec2020_allclasses %>%
+  gather(tp, fp, fn, precision, recall, f1score, key="metric", value="value")
+
+```
+
+
+Class distribution in the data is shown below:
+
+
+```{r, echo=FALSE}
+gt_dec2020 %>% spread(set, totalcount)
+```
+
+## General performance (all classes combined)
+```{r, echo=FALSE}
+fullconfrange <- c( 10, 20, 25, 30, 40, 50, 60, 70, 75, 80, 90 )
+customconfrange <- c(25, 50, 75, 90)
+```
+
+
+<!-- ### Precision/recall over iterations, per confidence threshold -->
+<!-- ```{r, echo=FALSE} -->
+<!-- for (myconf in customconfrange ){ -->
+<!--   myplot <- ggplot( me_dec2020_allclasses.long %>% filter(confthreshold == myconf, metric %in% c("precision", "recall")) ) + -->
+<!--     aes(x = iteration, y = value, colour = metric) + -->
+<!--     geom_line() + -->
+<!--     geom_hline(yintercept = 0.9, linetype='dashed') + -->
+<!--     ggtitle(paste0(myconf, "% confidence threshold")) -->
+<!--   print(myplot) -->
+<!-- } -->
+<!-- ``` -->
+
+### Effect of confidence threshold for selected iterations
+```{r, echo=FALSE}
+customiterationrange = c(462000)
+
+for (myiteration in customiterationrange){
+  myplot <- ggplot( me_dec2020_allclasses.long %>% filter(iteration == myiteration, metric %in% c("precision", "recall", "f1score")) ) +
+    aes(x = confthreshold, y = value, colour=metric) +
+    geom_line() +
+    geom_hline(yintercept = 0.9, linetype='dashed') +
+    ggtitle(paste0("Model iteration ", myiteration))
+  print(myplot)
+}
+```
+
+## Performance per class
+```{r, echo=FALSE}
+fullconfrange <- c( 10, 20, 25, 30, 40, 50, 60, 70, 75, 80, 90 )
+customconfrange <- c(25, 50, 75, 90)
+```
+
+<!-- ### Precision/recall over iterations, per confidence threshold, per class -->
+<!-- ```{r, echo=FALSE, fig.asp=1.5} -->
+<!-- for (myconf in customconfrange ){ -->
+<!--   myplot <- ggplot( me_dec2020.long %>% filter(confthreshold == myconf, metric %in% c("precision", "recall")) ) + -->
+<!--     aes(x = iteration, y = value, colour = metric) + -->
+<!--     geom_line() + -->
+<!--     geom_hline(yintercept = 0.9, linetype='dashed') + -->
+<!--     facet_grid(class~.) + -->
+<!--     ggtitle(paste0(myconf, "% confidence threshold")) -->
+<!--   print(myplot) -->
+<!-- } -->
+<!-- ``` -->
+
+### Effect of confidence threshold for selected iterations, per class
+```{r, echo=FALSE, fig.asp=1.5}
+customiterationrange = c(462000)
+
+for (myiteration in customiterationrange){
+  myplot <- ggplot( me_dec2020.long %>% filter(iteration == myiteration, metric %in% c("precision", "recall", "f1score")) ) +
+    aes(x = confthreshold, y = value, colour=metric) +
+    geom_line() +
+    geom_hline(yintercept = 0.9, linetype='dashed') +
+    facet_grid(class~.) +
+    ggtitle(paste0("Model iteration ", myiteration))
+  print(myplot)
+}
+```
+
+
